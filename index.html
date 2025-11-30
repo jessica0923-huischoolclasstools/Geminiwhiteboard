@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iPad 隨堂測驗卷</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #eef2f5;
+            --paper-bg: #ffffff;
+            --accent-color: #2196F3;
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: -apple-system, "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            overscroll-behavior: none;
+            padding-bottom: 80px;
+        }
+
+        /* --- 頂部控制列 --- */
+        .sticky-controls {
+            background-color: #333;
+            color: white;
+            padding: 10px 15px;
+            position: sticky;
+            top: 0;
+            z-index: 900;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sticky-controls input {
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            width: 70px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .save-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* --- 試卷區域 --- */
+        #exam-paper {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: var(--paper-bg);
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            position: relative;
+        }
+
+        .paper-header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .student-info-display {
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .info-item span {
+            color: #000;
+            border-bottom: 1px solid #999;
+            padding: 0 10px;
+            min-width: 60px;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .question-card {
+            border: 2px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .q-title {
+            background-color: #f8f9fa;
+            padding: 8px 15px;
+            font-weight: bold;
+            border-bottom: 1px solid #eee;
+            color: #444;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            background-color: white;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none; /* 禁止觸控滾動 */
+        }
+
+        .toolbar {
+            padding: 8px;
+            background: #fff;
+            border-top: 1px dashed #ddd;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .color-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            box-shadow: inset 0 0 2px rgba(0,0,0,0.2);
+        }
+
+        .color-dot.active {
+            transform: scale(1.1);
+            border-color: #555;
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #555;
+        }
+
+        .tool-btn {
+            margin-left: auto;
+            background-color: #f1f1f1;
+            border: 1px solid #ccc;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        /* --- 彈出結果視窗 (Modal) --- */
+        #result-modal {
+            display: none; /* 預設隱藏 */
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .modal-content img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+
+        .modal-msg {
+            color: white;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .modal-msg small {
+            display: block;
+            font-weight: normal;
+            font-size: 14px;
+            color: #ccc;
+            margin-top: 5px;
+        }
+
+        .close-btn {
+            margin-top: 15px;
+            padding: 10px 30px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.8);
+            color: #333;
+            z-index: 1500;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">正在合成圖片，請稍候...</div>
+
+    <div id="result-modal">
+        <div class="modal-msg">
+            長按下方圖片加入「照片」
+            <small>若圖片空白請重新按一次交卷</small>
+        </div>
+        <div class="modal-content">
+            <img id="final-image" src="" alt="測驗卷結果">
+        </div>
+        <button class="close-btn" onclick="closeModal()">關閉視窗</button>
+    </div>
+
+    <div class="sticky-controls">
+        <div class="input-row">
+            <input type="text" id="input-class" placeholder="班級" oninput="updateHeader()">
+            <input type="number" id="input-num" placeholder="座號" oninput="updateHeader()">
+        </div>
+        <button class="save-btn" onclick="generateImage()">
+            📷 交卷
+        </button>
+    </div>
+
+    <div id="exam-paper">
+        <div class="paper-header">
+            <h1>隨堂測驗卷</h1>
+            <div class="student-info-display">
+                <div class="info-item">班級：<span id="display-class">___</span></div>
+                <div class="info-item">座號：<span id="display-num">___</span></div>
+            </div>
+        </div>
+
+        <div id="questions-container"></div>
+    </div>
+
+    <script>
+        const colors = [
+            { hex: '#000000', name: '黑' },
+            { hex: '#FF0000', name: '紅' },
+            { hex: '#0000FF', name: '藍' },
+            { hex: '#008000', name: '綠' },
+            { hex: '#800080', name: '紫' },
+            { hex: '#FF69B4', name: '粉' },
+            { hex: '#FFD700', name: '黃' }
+        ];
+
+        // 1. 初始化
+        const container = document.getElementById('questions-container');
+        for (let i = 1; i <= 10; i++) {
+            createQuestion(i);
+        }
+
+        function createQuestion(index) {
+            const div = document.createElement('div');
+            div.className = 'question-card';
+            
+            let colorBtns = '';
+            colors.forEach((c, idx) => {
+                const active = idx === 0 ? 'active' : '';
+                colorBtns += `<div class="color-dot ${active}" 
+                               style="background-color: ${c.hex};" 
+                               onclick="setColor(${index}, '${c.hex}', this)"></div>`;
+            });
+
+            div.innerHTML = `
+                <div class="q-title">第 ${index} 題</div>
+                <div class="canvas-container" id="wrap-${index}">
+                    <canvas id="cvs-${index}"></canvas>
+                </div>
+                <div class="toolbar" data-html2canvas-ignore="true">
+                    ${colorBtns}
+                    <button class="tool-btn" onclick="clearCanvas(${index})">清除</button>
+                </div>
+            `;
+            container.appendChild(div);
+            setTimeout(() => initCanvas(index), 100);
+        }
+
+        function initCanvas(id) {
+            const canvas = document.getElementById(`cvs-${id}`);
+            const wrap = document.getElementById(`wrap-${id}`);
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                const rect = wrap.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#000000';
+            }
+            resize();
+
+            let isPainting = false;
+            let lastX = 0, lastY = 0;
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            }
+
+            function start(e) {
+                isPainting = true;
+                const pos = getPos(e);
+                lastX = pos.x; lastY = pos.y;
+            }
+
+            function draw(e) {
+                if (!isPainting) return;
+                if (e.type === 'touchmove') e.preventDefault();
+                const pos = getPos(e);
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                lastX = pos.x; lastY = pos.y;
+            }
+
+            function stop() { isPainting = false; }
+
+            canvas.addEventListener('mousedown', start);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stop);
+            canvas.addEventListener('mouseout', stop);
+            canvas.addEventListener('touchstart', start, {passive: false});
+            canvas.addEventListener('touchmove', draw, {passive: false});
+            canvas.addEventListener('touchend', stop);
+            canvas.ctx = ctx;
+        }
+
+        function setColor(id, hex, btn) {
+            const canvas = document.getElementById(`cvs-${id}`);
+            canvas.ctx.strokeStyle = hex;
+            const parent = btn.parentElement;
+            Array.from(parent.children).forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function clearCanvas(id) {
+            const canvas = document.getElementById(`cvs-${id}`);
+            canvas.ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function updateHeader() {
+            const cls = document.getElementById('input-class').value;
+            const num = document.getElementById('input-num').value;
+            document.getElementById('display-class').innerText = cls || "___";
+            document.getElementById('display-num').innerText = num || "___";
+        }
+
+        // --- 核心修改：生成圖片並顯示在 Modal 中 ---
+        function generateImage() {
+            const cls = document.getElementById('input-class').value;
+            const num = document.getElementById('input-num').value;
+            
+            if(!cls || !num) {
+                alert("請先填寫班級和座號！");
+                return;
+            }
+
+            // 顯示讀取中
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            // 視窗滾動回頂部，避免截圖跑版
+            window.scrollTo(0, 0);
+
+            const element = document.getElementById('exam-paper');
+
+            html2canvas(element, {
+                scale: 2,
+                backgroundColor: "#ffffff",
+                useCORS: true
+            }).then(canvas => {
+                const imgData = canvas.toDataURL("image/jpeg", 0.9);
+                
+                // 將圖片放入 Modal
+                const resultImg = document.getElementById('final-image');
+                resultImg.src = imgData;
+
+                // 隱藏讀取，顯示 Modal
+                document.getElementById('loading-overlay').style.display = 'none';
+                document.getElementById('result-modal').style.display = 'flex';
+
+            }).catch(err => {
+                console.error(err);
+                alert("圖片生成失敗，請再試一次。");
+                document.getElementById('loading-overlay').style.display = 'none';
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
